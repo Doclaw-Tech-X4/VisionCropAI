@@ -1,0 +1,9 @@
+torch
+torchvision
+fastapi
+uvicorn
+python-multipart
+pillow
+python-dotenv
+google-genai
+pydantic

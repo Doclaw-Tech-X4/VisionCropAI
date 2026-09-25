@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VisionCrop AI — Real-Time Crop Pathology Diagnostic</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        emerald: {
+                            950: '#022c22',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans antialiased">
+
+    <!-- Top Navigation Header -->
+    <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-50 px-6 py-4">
+        <div class="max-w-7xl mx-auto flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <span class="text-2xl">🌿</span>
+                <span class="font-extrabold text-xl tracking-tight bg-gradient-to-r from-emerald-400 to-teal-200 bg-clip-text text-transparent">
+                    VisionCrop AI
+                </span>
+                <span class="text-xs bg-emerald-900/60 text-emerald-300 border border-emerald-700 px-2.5 py-0.5 rounded-full font-medium">
+                    NVIDIA Brev Accelerated
+                </span>
+            </div>
+            
+            <div class="flex items-center space-x-4">
+                <div id="statusBadge" class="flex items-center space-x-2 text-xs bg-slate-800 border border-slate-700 px-3 py-1.5 rounded-full">
+                    <span id="statusDot" class="h-2.5 w-2.5 rounded-full bg-amber-400 animate-pulse"></span>
+                    <span id="statusText" class="text-slate-300">Checking API Backend...</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-6 py-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
+        
+        <!-- Left Column: Input Modes & Presets (5 Cols) -->
+        <section class="lg:col-span-5 space-y-6">
+            
+            <!-- Mode Selector Tabs -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-4">
+                <div class="flex justify-between items-center">
+                    <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                        <span>📷</span> Image Source Input
+                    </h2>
+                    
+                    <div class="flex bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs">
+                        <button id="tabUpload" onclick="switchInputMode('upload')" class="px-3 py-1.5 rounded-lg font-semibold bg-emerald-600 text-white transition-all">
+                            File Upload
+                        </button>
+                        <button id="tabWebcam" onclick="switchInputMode('webcam')" class="px-3 py-1.5 rounded-lg font-semibold text-slate-400 hover:text-white transition-all">
+                            Live Webcam
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 1. FILE UPLOAD CONTAINER -->
+                <div id="uploadContainer" class="space-y-3">
+                    <p class="text-xs text-slate-400">
+                        Drag and drop a crop foliage image or select a file to execute classification.
+                    </p>
+                    <div id="dropZone" class="border-2 border-dashed border-slate-700 hover:border-emerald-500 bg-slate-950/50 hover:bg-emerald-950/10 transition-all rounded-xl p-6 text-center cursor-pointer relative group flex flex-col items-center justify-center min-h-[220px]">
+                        <input type="file" id="fileInput" accept="image/*" class="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10">
+                        
+                        <div id="dropZonePrompt" class="space-y-3">
+                            <div class="w-12 h-12 mx-auto rounded-full bg-slate-800 group-hover:bg-emerald-900/50 flex items-center justify-center text-slate-400 group-hover:text-emerald-400 transition-colors">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                                </svg>
+                            </div>
+                            <div>
+                                <p class="text-sm font-semibold text-slate-200 group-hover:text-emerald-400 transition-colors">Drag and drop leaf photo here</p>
+                                <p class="text-xs text-slate-500 mt-1">Supports PNG, JPG, JPEG, WEBP</p>
+                            </div>
+                            <span class="inline-block px-3 py-1 bg-slate-800 group-hover:bg-emerald-800 text-xs text-slate-300 group-hover:text-emerald-100 rounded-md font-medium transition-colors">
+                                Browse Files
+                            </span>
+                        </div>
+
+                        <img id="imagePreview" src="" alt="Leaf Preview" class="hidden max-h-[260px] w-auto rounded-lg object-contain shadow-md z-0" />
+                    </div>
+                </div>
+
+                <!-- 2. WEBCAM STREAM CONTAINER -->
+                <div id="webcamContainer" class="hidden space-y-4">
+                    <p class="text-xs text-slate-400">
+                        Point your camera at a physical plant leaf and capture a real-time frame for pathology diagnosis.
+                    </p>
+                    <div class="relative bg-slate-950 rounded-xl overflow-hidden border border-slate-800 aspect-video flex items-center justify-center">
+                        <video id="webcamStream" autoplay playsinline class="w-full h-full object-cover"></video>
+                        <canvas id="webcamCanvas" class="hidden"></canvas>
+                        <div id="webcamPlaceholder" class="absolute inset-0 flex flex-col items-center justify-center bg-slate-950 text-slate-500 text-xs">
+                            <span class="text-3xl mb-2">📹</span>
+                            <span>Camera inactive. Click "Start Camera" below.</span>
+                        </div>
+                    </div>
+                    <div class="flex space-x-3">
+                        <button id="btnStartCamera" onclick="startCamera()" class="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white rounded-xl text-xs font-semibold transition-all">
+                            Start Camera
+                        </button>
+                        <button id="btnCaptureFrame" onclick="captureAndAnalyze()" disabled class="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:hover:bg-emerald-600 text-white rounded-xl text-xs font-semibold transition-all">
+                            Capture & Analyze
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Instant Evaluation Presets -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
+                <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-2">
+                    <span>⚡</span> Instant Evaluation Presets
+                </h3>
+                <div class="grid grid-cols-3 gap-3">
+                    <button onclick="loadPreset('tomato')" class="p-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-left transition-all">
+                        <div class="text-xs font-bold text-emerald-400">Tomato</div>
+                        <div class="text-[11px] text-slate-400 truncate">Late Blight</div>
+                    </button>
+                    <button onclick="loadPreset('corn')" class="p-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-left transition-all">
+                        <div class="text-xs font-bold text-amber-400">Corn / Maize</div>
+                        <div class="text-[11px] text-slate-400 truncate">Common Rust</div>
+                    </button>
+                    <button onclick="loadPreset('potato')" class="p-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-left transition-all">
+                        <div class="text-xs font-bold text-cyan-400">Potato</div>
+                        <div class="text-[11px] text-slate-400 truncate">Early Blight</div>
+                    </button>
+                </div>
+            </div>
+
+        </section>
+
+        <!-- Right Column: Results & Telemetry (7 Cols) -->
+        <section class="lg:col-span-7 space-y-6">
+            
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl min-h-[280px] flex flex-col justify-between">
+                <div>
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                            <span>📊</span> Diagnostic Output
+                        </h2>
+                        <span id="latencyBadge" class="text-xs font-mono bg-slate-800 border border-slate-700 text-slate-400 px-2.5 py-1 rounded-md">
+                            Inference: -- ms
+                        </span>
+                    </div>
+
+                    <div id="diagnosisResult" class="py-2">
+                        <div class="text-center py-8 text-slate-500">
+                            <span class="text-3xl block mb-2">🍃</span>
+                            <p class="text-sm">Upload a leaf image, use the webcam, or select a preset to begin.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-4 border-t border-slate-800 pt-4">
+                    <h4 class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3">
+                        Model Confidence Distribution
+                    </h4>
+                    <div id="confidenceMeters" class="space-y-3">
+                        <div class="text-xs text-slate-600 italic">No diagnostic data generated yet.</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Metrics -->
+            <div class="grid grid-cols-3 gap-4">
+                <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
+                    <div class="text-xs text-slate-400">Inference Engine</div>
+                    <div id="metricEngine" class="text-sm font-bold text-emerald-400 mt-1">PyTorch / MobileNetV3</div>
+                </div>
+                <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
+                    <div class="text-xs text-slate-400">Active Acceleration</div>
+                    <div id="metricDevice" class="text-sm font-bold text-slate-200 mt-1">Detecting...</div>
+                </div>
+                <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
+                    <div class="text-xs text-slate-400">Target Classes</div>
+                    <div class="text-sm font-bold text-slate-200 mt-1">38 Plant Diseases</div>
+                </div>
+            </div>
+
+        </section>
+    </main>
+
+    <script>
+        const API_URL = 'http://localhost:8000';
+        let webcamStreamObject = null;
+        let currentPrimaryDiagnosis = "";
+
+        // Check FastAPI Backend Health
+        async function checkBackendHealth() {
+            const statusDot = document.getElementById('statusDot');
+            const statusText = document.getElementById('statusText');
+            const metricDevice = document.getElementById('metricDevice');
+
+            try {
+                const res = await fetch(API_URL + '/');
+                if (res.ok) {
+                    const data = await res.json();
+                    statusDot.className = 'h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-sm shadow-emerald-400';
+                    statusText.textContent = 'FastAPI Online (' + data.device + ')';
+                    metricDevice.textContent = data.accelerated ? 'NVIDIA CUDA GPU' : 'CPU (Local)';
+                } else {
+                    throw new Error();
+                }
+            } catch (err) {
+                statusDot.className = 'h-2.5 w-2.5 rounded-full bg-red-400';
+                statusText.textContent = 'API Offline (Check Uvicorn)';
+                metricDevice.textContent = 'Disconnected';
+            }
+        }
+
+        // Toggle Tabs
+        function switchInputMode(mode) {
+            const tabUpload = document.getElementById('tabUpload');
+            const tabWebcam = document.getElementById('tabWebcam');
+            const uploadContainer = document.getElementById('uploadContainer');
+            const webcamContainer = document.getElementById('webcamContainer');
+
+            if (mode === 'upload') {
+                tabUpload.className = 'px-3 py-1.5 rounded-lg font-semibold bg-emerald-600 text-white transition-all';
+                tabWebcam.className = 'px-3 py-1.5 rounded-lg font-semibold text-slate-400 hover:text-white transition-all';
+                uploadContainer.classList.remove('hidden');
+                webcamContainer.classList.add('hidden');
+                stopCamera();
+            } else {
+                tabWebcam.className = 'px-3 py-1.5 rounded-lg font-semibold bg-emerald-600 text-white transition-all';
+                tabUpload.className = 'px-3 py-1.5 rounded-lg font-semibold text-slate-400 hover:text-white transition-all';
+                webcamContainer.classList.remove('hidden');
+                uploadContainer.classList.add('hidden');
+            }
+        }
+
+        // Camera Management
+        async function startCamera() {
+            const video = document.getElementById('webcamStream');
+            const placeholder = document.getElementById('webcamPlaceholder');
+            const btnCapture = document.getElementById('btnCaptureFrame');
+            const btnStart = document.getElementById('btnStartCamera');
+
+            try {
+                webcamStreamObject = await navigator.mediaDevices.getUserMedia({ 
+                    video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'environment' } 
+                });
+                video.srcObject = webcamStreamObject;
+                placeholder.classList.add('hidden');
+                btnCapture.disabled = false;
+                btnStart.textContent = 'Camera Active';
+                btnStart.classList.replace('bg-slate-800', 'bg-emerald-950');
+                btnStart.classList.replace('border-slate-700', 'border-emerald-700');
+            } catch (err) {
+                alert('Could not access camera. Please allow camera permissions in your browser.');
+            }
+        }
+
+        function stopCamera() {
+            if (webcamStreamObject) {
+                webcamStreamObject.getTracks().forEach(track => track.stop());
+                webcamStreamObject = null;
+            }
+            const placeholder = document.getElementById('webcamPlaceholder');
+            const btnCapture = document.getElementById('btnCaptureFrame');
+            const btnStart = document.getElementById('btnStartCamera');
+            
+            if (placeholder) placeholder.classList.remove('hidden');
+            if (btnCapture) btnCapture.disabled = true;
+            if (btnStart) {
+                btnStart.textContent = 'Start Camera';
+                btnStart.className = 'flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white rounded-xl text-xs font-semibold transition-all';
+            }
+        }
+
+        function captureAndAnalyze() {
+            const video = document.getElementById('webcamStream');
+            const canvas = document.getElementById('webcamCanvas');
+            
+            if (!webcamStreamObject) return;
+
+            canvas.width = video.videoWidth || 640;
+            canvas.height = video.videoHeight || 480;
+            
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            canvas.toBlob(function(blob) {
+                const capturedFile = new File([blob], "webcam_frame.jpg", { type: "image/jpeg" });
+                
+                const previewImg = document.getElementById('imagePreview');
+                const dropPrompt = document.getElementById('dropZonePrompt');
+                previewImg.src = URL.createObjectURL(blob);
+                previewImg.classList.remove('hidden');
+                dropPrompt.classList.add('hidden');
+
+                runDiagnostic(capturedFile);
+            }, 'image/jpeg', 0.95);
+        }
+
+        // Drag and Drop
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, function(e) {
+                e.preventDefault(); e.stopPropagation();
+            }, false);
+        });
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, function() {
+                dropZone.classList.add('border-emerald-500', 'bg-emerald-950/20');
+            }, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, function() {
+                dropZone.classList.remove('border-emerald-500', 'bg-emerald-950/20');
+            }, false);
+        });
+
+        dropZone.addEventListener('drop', function(e) {
+            const files = e.dataTransfer.files;
+            if (files.length > 0) handleFileSelect(files[0]);
+        });
+
+        fileInput.addEventListener('change', function(e) {
+            if (e.target.files.length > 0) handleFileSelect(e.target.files[0]);
+        });
+
+        function handleFileSelect(file) {
+            if (!file.type.startsWith('image/')) {
+                alert('Please select a valid image file.');
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const previewImg = document.getElementById('imagePreview');
+                const dropPrompt = document.getElementById('dropZonePrompt');
+                previewImg.src = e.target.result;
+                previewImg.classList.remove('hidden');
+                dropPrompt.classList.add('hidden');
+                runDiagnostic(file);
+            };
+            reader.readAsDataURL(file);
+        }
+
+        async function runDiagnostic(file) {
+            const formData = new FormData();
+            formData.append('file', file);
+
+            document.getElementById('diagnosisResult').innerHTML = 
+                '<div class="flex items-center space-x-3 text-emerald-400 py-4">' +
+                    '<svg class="animate-spin h-5 w-5" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>' +
+                    '<span class="text-sm font-medium">Running Diagnostics...</span>' +
+                '</div>';
+
+            try {
+                const response = await fetch(API_URL + '/api/v1/diagnose', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) throw new Error('API request failed');
+                const data = await response.json();
+
+                currentPrimaryDiagnosis = data.primary_diagnosis;
+
+                // Latency Badge & Engine Name
+                document.getElementById('latencyBadge').textContent = 'Inference: ' + data.inference_time_ms + ' ms (' + data.device_used + ')';
+                if (data.engine_used) {
+                    document.getElementById('metricEngine').textContent = data.engine_used;
+                }
+
+                // Render Diagnosis + Location Supplier Search Button directly into the output!
+                document.getElementById('diagnosisResult').innerHTML = 
+                    '<div class="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">' +
+                        '<div class="flex justify-between items-center">' +
+                            '<span class="text-xs uppercase font-bold text-emerald-400 tracking-wider">Primary Diagnosis</span>' +
+                            '<span class="text-xs text-slate-400 font-mono">' + data.device_used + '</span>' +
+                        '</div>' +
+                        '<h3 class="text-xl font-bold text-white">' + data.primary_diagnosis + '</h3>' +
+                        '<div class="text-sm text-slate-300 leading-relaxed pt-2 border-t border-slate-800">' +
+                            '<strong class="text-emerald-400 block mb-1">Recommended Remediation Plan:</strong>' +
+                            '<span>' + data.remediation_plan + '</span>' +
+                        '</div>' +
+                        
+                        '<!-- STORE FINDER BUTTON -->' +
+                        '<div class="pt-3 border-t border-slate-900 mt-2">' +
+                            '<button onclick="getUserLocationAndShops()" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition-all shadow-lg shadow-emerald-950/50">' +
+                                '<span>📍</span> Find Nearby Agro-Vet Stores & Medicine Suppliers' +
+                            '</button>' +
+                            '<div id="shopsList" class="mt-3 space-y-2 hidden"></div>' +
+                        '</div>' +
+                    '</div>';
+
+                // Confidence Meters
+                const confidenceContainer = document.getElementById('confidenceMeters');
+                confidenceContainer.innerHTML = '';
+                data.top_3_predictions.forEach(function(item) {
+                    const percentage = (item.confidence * 100).toFixed(1);
+                    confidenceContainer.innerHTML += 
+                        '<div class="space-y-1">' +
+                            '<div class="flex justify-between text-xs text-slate-300">' +
+                                '<span>' + item.class_name + '</span>' +
+                                '<span class="font-mono text-emerald-400">' + percentage + '%</span>' +
+                            '</div>' +
+                            '<div class="w-full bg-slate-800 rounded-full h-2 overflow-hidden">' +
+                                '<div class="bg-emerald-500 h-2 rounded-full transition-all duration-500" style="width: ' + percentage + '%"></div>' +
+                            '</div>' +
+                        '</div>';
+                });
+
+            } catch (err) {
+                document.getElementById('diagnosisResult').innerHTML = 
+                    '<div class="p-4 rounded-xl bg-red-950/40 border border-red-800 text-red-300 text-sm">' +
+                        '<strong>Error connecting to FastAPI backend.</strong> Make sure <code>uvicorn api:app</code> is running at <code>http://localhost:8000</code>.' +
+                    '</div>';
+            }
+        }
+
+        // GEOLOCATION & NEARBY SHOP FINDER
+        function getUserLocationAndShops() {
+            const shopsList = document.getElementById('shopsList');
+            shopsList.classList.remove('hidden');
+            shopsList.innerHTML = '<div class="text-xs text-emerald-400 animate-pulse py-2 flex items-center gap-2"><span>📡</span> Locating GPS position & finding local agro-dealers...</div>';
+
+            if (!navigator.geolocation) {
+                shopsList.innerHTML = '<div class="text-xs text-red-400 py-1">Geolocation is not supported by your browser.</div>';
+                return;
+            }
+
+            navigator.geolocation.getCurrentPosition(async (position) => {
+                const lat = position.coords.latitude;
+                const lon = position.coords.longitude;
+
+                try {
+                    const res = await fetch(API_URL + '/api/v1/nearby-shops', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            latitude: lat,
+                            longitude: lon,
+                            remediation_keyword: currentPrimaryDiagnosis || "insecticide"
+                        })
+                    });
+
+                    if (!res.ok) throw new Error("API Shop Search Failed");
+
+                    const data = await res.json();
+                    
+                    if (!data.recommended_shops || data.recommended_shops.length === 0) {
+                        shopsList.innerHTML = '<div class="text-xs text-amber-400 py-1">No local agro-dealers found nearby.</div>';
+                        return;
+                    }
+
+                    shopsList.innerHTML = '<h5 class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2 pt-1">Recommended Local Treatment Suppliers</h5>';
+
+                    data.recommended_shops.forEach(shop => {
+                        shopsList.innerHTML += 
+                            '<div class="p-3 bg-slate-900 border border-slate-800 rounded-xl flex justify-between items-center text-xs transition-all hover:border-emerald-800">' +
+                                '<div>' +
+                                    '<div class="font-bold text-white text-xs">' + shop.name + '</div>' +
+                                    '<div class="text-slate-400 text-[11px] mt-0.5">' + shop.address + ' (' + shop.distance_km + ' km away)</div>' +
+                                    '<div class="text-emerald-400 font-mono text-[11px] mt-1">📞 ' + shop.phone + '</div>' +
+                                '</div>' +
+                                '<span class="text-[10px] bg-slate-800 text-emerald-300 px-2 py-1 rounded-md border border-slate-700 font-medium whitespace-nowrap ml-2">' +
+                                    shop.status +
+                                '</span>' +
+                            '</div>';
+                    });
+
+                } catch (err) {
+                    shopsList.innerHTML = '<div class="text-xs text-red-400 py-1">Error fetching nearby shops from API backend.</div>';
+                }
+            }, (error) => {
+                shopsList.innerHTML = '<div class="text-xs text-amber-400 py-1">Location permission denied or GPS unavailable. (' + error.message + ')</div>';
+            });
+        }
+
+        // Demo Presets Helper
+        function loadPreset(cropType) {
+            switchInputMode('upload');
+            const canvas = document.createElement('canvas');
+            canvas.width = 224; canvas.height = 224;
+            const ctx = canvas.getContext('2d');
+            
+            if (cropType === 'tomato') {
+                ctx.fillStyle = '#2d5a27'; ctx.fillRect(0, 0, 224, 224);
+                ctx.fillStyle = '#1c1b18'; ctx.beginPath(); ctx.arc(100, 100, 45, 0, 2 * Math.PI); ctx.fill();
+            } else if (cropType === 'corn') {
+                ctx.fillStyle = '#4a7c59'; ctx.fillRect(0, 0, 224, 224);
+                ctx.fillStyle = '#8b4513'; ctx.fillRect(40, 20, 15, 180);
+            } else {
+                ctx.fillStyle = '#3b6e4c'; ctx.fillRect(0, 0, 224, 224);
+                ctx.fillStyle = '#553311'; ctx.beginPath(); ctx.arc(130, 110, 35, 0, 2 * Math.PI); ctx.fill();
+            }
+
+            canvas.toBlob(function(blob) {
+                const file = new File([blob], cropType + "_preset.jpg", { type: "image/jpeg" });
+                handleFileSelect(file);
+            }, 'image/jpeg');
+        }
+
+        // Initial Load
+        checkBackendHealth();
+        setInterval(checkBackendHealth, 10000);
+    </script>
+</body>
+</html>
