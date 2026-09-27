@@ -4,7 +4,7 @@ import {
     AlertTriangle, RefreshCw, Printer, ShieldCheck, Zap
 } from 'lucide-react';
 
-const API_URL = "http://localhost:8000";
+const API_URL = "http://18.232.94.46:8000/";
 
 export default function App() {
     const [backendStatus, setBackendStatus] = useState({ online: false, device: '...', gpu: '...', vram: 0 });
